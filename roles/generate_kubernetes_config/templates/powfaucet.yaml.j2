@@ -12,6 +12,7 @@ powfaucet:
     tag: {{ _img.split(':') | last}}
     pullPolicy: {% if "latest" in (_img.split(':') | last) %}Always{% else %}IfNotPresent{% endif %}
 
+
   resources:
     requests:
       cpu: 200m
@@ -22,6 +23,8 @@ powfaucet:
 
   ingress:
     enabled: true
+
+    className: ingress-nginx-public
 {% if not _agents and gen_kubernetes_config_pandamenu_enabled %}
     annotations:
       nginx.ingress.kubernetes.io/proxy-body-size: "0"
@@ -30,7 +33,7 @@ powfaucet:
         sub_filter_types text/html;
         sub_filter_once off;
 {% endif %}
-    className: ingress-nginx-public
+
     hosts:
       - host: {{ 'faucet-agents' if _agents else 'faucet' }}.{{ network_subdomain }}
         paths:
@@ -73,9 +76,7 @@ powfaucet:
   faucetTxGasLimit: 100000
 
 {% if _agents %}
-  # Captcha disabled — agents authenticate via PoW.
   faucetCaptchaEnabled: false
-  # Authenticatoor disabled — dedicated agent faucet; no browser login.
   faucetAuthenticatoorEnabled: false
 {% else %}
   faucetCaptchaEnabled: true
