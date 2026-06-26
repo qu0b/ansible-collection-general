@@ -1,13 +1,16 @@
 # {{ ansible_managed }}
 
+{% set _agents = item.key == 'faucet-agents' %}
+{% set _agent_img = default_tooling_images.powfaucet_agents | default(default_tooling_images.powfaucet) %}
+{% set _img = _agent_img if _agents else default_tooling_images.powfaucet %}
+
 powfaucet:
-  fullnameOverride: powfaucet
+  fullnameOverride: {{ 'powfaucet-agents' if _agents else 'powfaucet' }}
 
   image:
-    repository: {{ default_tooling_images.powfaucet.split(':') | first }}
-    tag: {{ default_tooling_images.powfaucet.split(':') | last}}
-    pullPolicy: {% if "latest" in (default_tooling_images.powfaucet.split(':') | last) %}Always{% else %}IfNotPresent{% endif %}
-
+    repository: {{ _img.split(':') | first }}
+    tag: {{ _img.split(':') | last}}
+    pullPolicy: {% if "latest" in (_img.split(':') | last) %}Always{% else %}IfNotPresent{% endif %}
 
   resources:
     requests:
@@ -19,9 +22,7 @@ powfaucet:
 
   ingress:
     enabled: true
-
-    className: ingress-nginx-public
-{% if gen_kubernetes_config_pandamenu_enabled %}
+{% if not _agents and gen_kubernetes_config_pandamenu_enabled %}
     annotations:
       nginx.ingress.kubernetes.io/proxy-body-size: "0"
       nginx.ingress.kubernetes.io/configuration-snippet: |
@@ -29,16 +30,16 @@ powfaucet:
         sub_filter_types text/html;
         sub_filter_once off;
 {% endif %}
-
+    className: ingress-nginx-public
     hosts:
-      - host: faucet.{{ network_subdomain }}
+      - host: {{ 'faucet-agents' if _agents else 'faucet' }}.{{ network_subdomain }}
         paths:
           - path: /
             pathType: Prefix
   httpProxyCount: 2
 
-  faucetTitle: "{{ ethereum_network_name }} PoW Faucet"
-  faucetPrivkey: "<path:/secrets/services/services.enc.yaml#ethereum | jsonPath {.testnets.{{ devnet_name }}-devnets.faucet_private_key}>"
+  faucetTitle: "{{ ethereum_network_name }} {{ 'Agent Faucet' if _agents else 'PoW Faucet' }}"
+  faucetPrivkey: "<path:/secrets/services/services.enc.yaml#ethereum | jsonPath {.testnets.{{ devnet_name }}-devnets.{{ 'faucet_agents_private_key' if _agents else 'faucet_private_key' }}>"
   faucetRpcUrl: "https://<path:/secrets/services/services.enc.yaml#ethereum | jsonPath {.testnets.{{ devnet_name }}-devnets.node_ingress.combined}>@{{ ethereum_node_rpc_prefix }}{{ primary_bootnode }}.{{ network_server_subdomain }}"
 {# Multi-RPC endpoint list. If the operator set gen_kubernetes_config_powfaucet_rpc_endpoints, that wins.
    Otherwise auto-generate from inventory: tooling/bootnode first, then ethereum_node clients sorted
@@ -71,16 +72,15 @@ powfaucet:
   faucetExplorerLink: "{{ gen_kubernetes_config_dora_frontend_explorer_link }}/tx/{txid}"
   faucetTxGasLimit: 100000
 
+{% if _agents %}
+  # Captcha disabled — agents authenticate via PoW.
+  faucetCaptchaEnabled: false
+  # Authenticatoor disabled — dedicated agent faucet; no browser login.
+  faucetAuthenticatoorEnabled: false
+{% else %}
   faucetCaptchaEnabled: true
   faucetCaptchaSitekey: "<path:/secrets/services/services.enc.yaml#hcaptcha | jsonPath {.site_key}>"
   faucetCaptchaSecret: "<path:/secrets/services/services.enc.yaml#hcaptcha | jsonPath {.secret_key}>"
-
-  faucetRecurringLimitsAmountWei: 5000000000000000000000 # 5000 ETH
-  faucetMaxDropWei: 500000000000000000000 # 500 ETH
-  faucetPowEnabled: true
-  faucetPowRewardPerHash: 1000000000000000000 # 1 ETH
-  faucetPowDifficulty: 10
-
 {% if gen_kubernetes_config_powfaucet_authenticatoor_enabled %}
   faucetAuthenticatoorEnabled: true
   faucetAuthenticatoorAuthUrl: "https://auth.{{ network_subdomain }}"
@@ -89,4 +89,17 @@ powfaucet:
   faucetAuthenticatoorGrants:
 {{ gen_kubernetes_config_powfaucet_authenticatoor_grants | to_nice_yaml(indent=2) | indent(4, true) }}
 {% endif %}
+{% endif %}
+{% endif %}
+
+  faucetRecurringLimitsAmountWei: 5000000000000000000000 # 5000 ETH
+  faucetMaxDropWei: 500000000000000000000 # 500 ETH
+  faucetPowEnabled: true
+  faucetPowRewardPerHash: 1000000000000000000 # 1 ETH
+  faucetPowDifficulty: 10
+
+{% if _agents %}
+  extraEnv:
+    - name: FAUCET_ETH_REST_WALLET_KEY
+      value: "<path:/secrets/services/services.enc.yaml#ethereum | jsonPath {.testnets.{{ devnet_name }}-devnets.faucet_agents_rest_private_key}>"
 {% endif %}

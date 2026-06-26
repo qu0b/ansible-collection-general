@@ -119,7 +119,7 @@ gen_kubernetes_config_helm_charts: # noqa var-naming[no-role-prefix]
         repository: https://ethpandaops.github.io/ethereum-helm-charts
         version: 1.0.0
   faucet-agents:
-    valuesTemplatePath: templates/powfaucet-agents.yaml.j2
+    valuesTemplatePath: templates/powfaucet.yaml.j2
     dependencies:
       - name: powfaucet
         repository: https://ethpandaops.github.io/ethereum-helm-charts
