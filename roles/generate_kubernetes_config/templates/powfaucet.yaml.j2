@@ -39,7 +39,7 @@ powfaucet:
   httpProxyCount: 2
 
   faucetTitle: "{{ ethereum_network_name }} {{ item.value.faucetOverride.titleSuffix | default('PoW Faucet') }}"
-  faucetPrivkey: "<path:/secrets/services/services.enc.yaml#ethereum | jsonPath {.testnets.{{ devnet_name }}-devnets.{{ item.value.faucetOverride.privkeySopsKey | default('faucet_private_key') }}>"
+  faucetPrivkey: "{{ item.value.faucetOverride.privkeySopsRef | default('<path:/secrets/services/services.enc.yaml#ethereum | jsonPath {.testnets.' + devnet_name + '-devnets.' + (item.value.faucetOverride.privkeySopsKey | default('faucet_private_key')) + '}>') }}"
   faucetRpcUrl: "https://<path:/secrets/services/services.enc.yaml#ethereum | jsonPath {.testnets.{{ devnet_name }}-devnets.node_ingress.combined}>@{{ ethereum_node_rpc_prefix }}{{ primary_bootnode }}.{{ network_server_subdomain }}"
 {# Multi-RPC endpoint list. If the operator set gen_kubernetes_config_powfaucet_rpc_endpoints, that wins.
    Otherwise auto-generate from inventory: tooling/bootnode first, then ethereum_node clients sorted
@@ -92,7 +92,11 @@ powfaucet:
 {% endif %}
 {% endif %}
 
-{% if item.value.faucetOverride.restWalletSopsKey is defined %}
+{% if item.value.faucetOverride.restWalletSopsRef is defined %}
+  extraEnv:
+    - name: FAUCET_ETH_REST_WALLET_KEY
+      value: "{{ item.value.faucetOverride.restWalletSopsRef }}"
+{% elif item.value.faucetOverride.restWalletSopsKey is defined %}
   extraEnv:
     - name: FAUCET_ETH_REST_WALLET_KEY
       value: "<path:/secrets/services/services.enc.yaml#ethereum | jsonPath {.testnets.{{ devnet_name }}-devnets.{{ item.value.faucetOverride.restWalletSopsKey }}>"
